@@ -1,0 +1,89 @@
+apply plugin: 'java'
+apply plugin: 'war'
+apply plugin: 'eclipse-wtp'
+apply plugin: 'eclipse'
+
+//set JDK 1.8
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+//UTF-8
+//tasks.withType(JavaCompile) {
+//    options.debug = true
+//    options.debugOptions.debugLevel = "source,lines,vars"
+ //   options.encoding = "UTF-8"
+//}
+
+
+compileJava.options.encoding = 'UTF-8'
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+test {
+    systemProperty "file.encoding", "utf-8"
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile group: 'commons-collections', name: 'commons-collections', version: '3.2'
+    testCompile group: 'junit', name: 'junit', version: '4.+'
+    
+    //SQL connector
+    compile group: 'mysql', name: 'mysql-connector-java', version: '5.1.10'
+    
+    //Hibernate
+    compile group: 'org.hibernate', name: 'hibernate-core', version: "4.3.7.Final"
+    compile group: 'org.hibernate', name: 'hibernate-c3p0', version: "4.3.7.Final"
+    
+    //Mapper
+    compile group: 'org.codehaus.jackson', name: 'jackson-mapper-asl', version: '1.9.13'
+    compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.8.5'
+    
+    //XML binder
+    compile group: 'com.sun.xml.bind', name: 'jaxb-xjc', version: '2.1.7'
+    
+    //Spring
+    compile 'ch.qos.logback:logback-classic:1.1.3'    
+    compile group: 'org.springframework', name: 'spring-core', version: "4.3.1.RELEASE"
+    compile group: 'org.springframework', name: 'spring-context', version: "4.3.1.RELEASE"
+    compile group: 'org.springframework', name: 'spring-web', version: "4.3.1.RELEASE"
+    compile group: 'org.springframework', name: 'spring-webmvc', version: "4.3.1.RELEASE"
+    compile group: 'org.springframework', name: 'spring-orm', version: "4.3.1.RELEASE"
+    compile group: 'org.springframework', name: 'spring-test', version: "4.3.1.RELEASE"
+    
+    //Servlet
+    compile 'javax.servlet:servlet-api:2.5',
+                'javax.servlet:jsp-api:2.0',
+                'javax.servlet:jstl:1.2'
+	
+	//Common Codec
+	compile 'org.apache.directory.studio:org.apache.commons.codec:1.8'
+	
+	//Json
+	compile group: 'org.json', name: 'json', version: "20160810"
+	
+	// https://mvnrepository.com/artifact/io.springfox/springfox-swagger2
+ 	compile group: 'io.springfox', name: 'springfox-swagger2', version: '2.5.0'
+ 	
+ 	// https://mvnrepository.com/artifact/io.springfox/springfox-swagger-ui
+	compile group: 'io.springfox', name: 'springfox-swagger-ui', version: '2.5.0'
+	
+	
+}
+
+test {
+    systemProperties 'property': 'value'
+}
+
+uploadArchives {
+    repositories {
+       flatDir {
+           dirs 'repos'
+       }
+    }
+}
