@@ -8,7 +8,7 @@ import javax.persistence.Id;
 public class Token {
 	@Id
 	@Column(nullable = false, unique = true)
-	private String code;
+	private String token;
 	@Column(nullable = false)
 	private long fromTime;
 	@Column(nullable = false)
@@ -19,10 +19,10 @@ public class Token {
 	}
 
 	public String getCode() {
-		return code;
+		return token;
 	}
 	public void setCode(String code) {
-		this.code = code;
+		this.token = code;
 	}
 
 	public long getFrom() {

@@ -34,15 +34,15 @@ import lib.support.encryptDecrypt;
 public class UserPresenter {
 	@Autowired
 	private UserDAO userDAO;
-	
+
 	@Autowired
 	private TokenDAO tokenDAO;
-	
+
 	@Autowired
 	private HttpStatusDAO httpStatusDAO;
 
 	// REGISTER
-	@ApiOperation(value = "Create User", notes = "Retriving status 200 if success", response = User.class)
+	@ApiOperation(value = "Create User", notes = "Retriving status 200 if success.\nExample: string 79197efa3febf7d553bd8406b6608ad7   abc 1e0a795ff08052eb076bfa268c94e7ac", response = User.class)
 	@PostMapping(value = "/users", produces = "application/json; charset=UTF-8")
 	public Map<String, Object> createUser(@RequestHeader(value = "Localization") String key,
 			@RequestHeader(value = "DeviceId") String deviceId, @RequestBody User user) {
@@ -51,29 +51,37 @@ public class UserPresenter {
 		String userData = this.userDAO.createUser(user, deviceId);
 		Token token = this.tokenDAO.getToken(this.tokenDAO.createToken(user));
 
+		if (userData == "inValid") {
+			result.put("data", "");
+			result.put("status", "400");
+			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
+			return result;
+		}
+
 		if (userData != "Error") {
-			data.put("token", token);
+			data.put("token", token.getCode());
 			data.put("id", userData);
-			
+
 			result.put("data", data);
 			result.put("status", "200");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "200"));
 			return result;
-		}
-		else if(userData != "0"){
+		} else if (userData != "0") {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
-			
-		}else {
+
+		} else {
+			result.put("data", "");
 			result.put("status", "500");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "500"));
 			return result;
 		}
 	}
-	
+
 	// LOG IN
-	@ApiOperation(value = "Login", notes = "Retrieving a Token", response = User.class)
+	@ApiOperation(value = "Login", notes = "Retrieving a Token + id. Need username(useraccount) and password", response = User.class)
 	@PostMapping(value = "/users/login", produces = "application/json")
 	public Map<String, Object> login(@RequestHeader(value = "Localization") String key,
 			@RequestParam("username") String encrypted_username, @RequestParam("password") String encrypted_password) {
@@ -82,18 +90,20 @@ public class UserPresenter {
 
 		String response = this.userDAO.checkLogin(encrypted_username, encrypted_password);
 
-		if (response.equals("400")) {
-			result.put("status", "400");
-			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
+		if (response.equals("404")) {
+			result.put("data", "");
+			result.put("status", "404");
+			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "404"));
 			return result;
-		}else if(response.equals("500")){
+		} else if (response.equals("500")) {
+			result.put("data", "");
 			result.put("status", "500");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "500"));
 			return result;
 		} else {
 			User user = this.userDAO.findUserById(response);
 			Token token = this.tokenDAO.getToken(this.tokenDAO.createToken(user));
-			data.put("token", token);
+			data.put("token", token.getCode());
 			data.put("id", user.getId());
 
 			result.put("data", data);
@@ -104,7 +114,7 @@ public class UserPresenter {
 	}
 
 	// LOG OUT
-	@ApiOperation(value = "Log Out", response = User.class)
+	@ApiOperation(value = "Log Out", notes = "Delete token and retrieve status 200",response = User.class)
 	@DeleteMapping(value = "/user/{id}")
 	public Map<String, Object> deleteUser(@RequestHeader(value = "Localization") String key,
 			@RequestHeader(value = "Authorization") String code, @PathVariable String id) {
@@ -112,6 +122,7 @@ public class UserPresenter {
 
 		Token token = this.tokenDAO.getToken(code);
 		if (token == null) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
@@ -119,29 +130,37 @@ public class UserPresenter {
 
 		User user = this.userDAO.findUserById(id);
 		if (user == null) {
+			result.put("data", "");
 			result.put("status", "404");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "404"));
 			return result;
 		}
 
 		this.tokenDAO.deleteToken(code);
+		result.put("data", "");
 		result.put("status", "200");
 		result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "200"));
 		return result;
 	}
 
-	// UPDATE USER (PASSWORD, EMAIL, PHONE)
-	@ApiOperation(value = "Update User", notes = "Update Only a User", response = User.class)
-	@PutMapping("/user/{id}/profile")
+	// UPDATE USER (FULLNAME, EMAIL, PHONE) - USER (PHONE-RECEIVE-EXCHANGE,
+	// PASSWORD) - USER (OLDPASSWORD, NEWPASSWORD)
+	@ApiOperation(value = "Update User", notes = "[include = profile => (phone, fullname, email)] - [include = verify => (phoneRX, password)] - [include = password => (password, oldpassword)]", response = User.class)
+	@PutMapping("/user/{id}/{include}")
 	public Map<String, Object> updateUser(@RequestHeader(value = "Localization") String key,
 			@RequestHeader(value = "Authorization") String code, @PathVariable String id,
-			@RequestParam("password") String encrypted_password, @RequestParam("email") String encrypted_email,
-			@RequestParam("phone") String encrypted_phone, @RequestParam("fullname") String encrypted_fullname,
-			@RequestParam("phoneRX") String encrypted_phoneRX) {
+			@PathVariable String include,
+			@RequestParam(name = "password", required = false) String encrypted_password,
+			@RequestParam(name = "email", required = false) String encrypted_email,
+			@RequestParam(name = "phone", required = false) String encrypted_phone,
+			@RequestParam(name = "fullname", required = false) String encrypted_fullname,
+			@RequestParam(name = "phoneRX", required = false) String encrypted_phoneRX,
+			@RequestParam(name = "oldpassword", required = false) String encrypted_oldpassword) {
 		Map<String, Object> result = new HashMap<String, Object>();
 
 		Token token = this.tokenDAO.getToken(code);
 		if (token == null) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
@@ -149,61 +168,99 @@ public class UserPresenter {
 
 		User user = this.userDAO.findUserById(id);
 		if (user == null) {
+			result.put("data", "");
 			result.put("status", "404");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "404"));
 			return result;
 		}
 
-		this.userDAO.changeUserProfile(id, encrypted_fullname, encrypted_password, encrypted_email, encrypted_phone,
-				encrypted_phoneRX);
+		if (include.isEmpty() == false) {
+			if (include.equals("profile")) {
+				if ((encrypted_email != "" || encrypted_email != null)
+						&& (encrypted_fullname != "" || encrypted_fullname != null)
+						&& (encrypted_phone != "" || encrypted_phone != null)
+						&& (encrypted_oldpassword == "" || encrypted_oldpassword == null)
+						&& (encrypted_password == "" || encrypted_password == null)
+						&& (encrypted_phoneRX == "" || encrypted_phoneRX == null)) {
 
-		this.tokenDAO.updateToken(code);
+					this.userDAO.changeUserProfile(id, encrypted_fullname, encrypted_email, encrypted_phone);
+					this.tokenDAO.updateToken(code);	
 
-		result.put("status", "200");
-		result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "200"));
-		return result;
-	}
+					result.put("data", "1");
+					result.put("status", "200");
+					result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "200"));
+					return result;
+				}
 
-	// Change Password
-	@ApiOperation(value = "Change Password", notes = "Need old password and new password", response = User.class)
-	@PutMapping("/users/{id}")
-	public Map<String, Object> changePassword(@RequestHeader(value = "Localization") String key,
-			@RequestHeader(value = "Authorization") String code, @PathVariable String id,
-			@RequestParam("oldpass") String encrypted_oldpassword,
-			@RequestParam("newpass") String encrypted_newpassword) {
-		Map<String, Object> result = new HashMap<String, Object>();
+				else {
+					result.put("data", "1");
+					result.put("status", "400");
+					result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
+					return result;
+				}
+			}
 
-		Token token = this.tokenDAO.getToken(code);
-		if (token == null) {
+			if (include.equals("verify")) {
+				if ((encrypted_email == "" || encrypted_email == null)
+						&& (encrypted_fullname == "" || encrypted_fullname == null)
+						&& (encrypted_phone == "" || encrypted_phone == null)
+						&& (encrypted_oldpassword == "" || encrypted_oldpassword == null)
+						&& (encrypted_password != "" || encrypted_password != null)
+						&& (encrypted_phoneRX != "" || encrypted_phoneRX != null)) {
+					this.userDAO.verifyUserProfile(id, encrypted_phoneRX, encrypted_password);
+					this.tokenDAO.updateToken(code);
+
+					result.put("data", "2");
+					result.put("status", "200");
+					result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "200"));
+					return result;
+				} else {
+					result.put("data", "2");
+					result.put("status", "400");
+					result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
+					return result;
+				}
+			}
+
+			if (include.equals("password")) {
+				if ((encrypted_email == "" || encrypted_email == null)
+						&& (encrypted_fullname == "" || encrypted_fullname == null)
+						&& (encrypted_phone == "" || encrypted_phone == null)
+						&& (encrypted_oldpassword != "" || encrypted_oldpassword != null)
+						&& (encrypted_password != "" || encrypted_password != null)
+						&& (encrypted_phoneRX == "" || encrypted_phoneRX == null)) {
+					if (!user.getPassword().equals(encrypted_oldpassword)) {
+						result.put("data", "");
+						result.put("status", "400");
+						result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
+						return result;
+					}
+					this.userDAO.changePassword(id, encrypted_password);
+					this.tokenDAO.updateToken(code);
+
+					result.put("data", "3");
+					result.put("status", "200");
+					result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "200"));
+					return result;
+				} else {
+					result.put("data", "3");
+					result.put("status", "400");
+					result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
+					return result;
+				}
+			}
+		} else {
+			result.put("data", "4");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
 		}
-
-		User user = this.userDAO.findUserById(id);
-
-		if (user == null) {
-			result.put("status", "404");
-			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "404"));
-			return result;
-		}
-
-		System.out.println("-----------" + user.getPassword());
-		if (!user.getPassword().equals(encrypted_oldpassword)) {
-			result.put("status", "405");
-			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "404"));
-			return result;
-		}
-
-		this.userDAO.changePassword(id, encrypted_newpassword);
-
-		this.tokenDAO.updateToken(code);
-
-		result.put("status", "200");
-		result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "200"));
+		result.put("data", "5");
+		result.put("status", "400");
+		result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 		return result;
 	}
-	
+
 	// RESET PASSWORD
 	@ApiOperation(value = "Reset password by using username, email and phone", notes = "if request is success, we will a message 'We will contact you later. Please wait.' and the request will save in a log file.", response = User.class)
 	@PostMapping(value = "/user", produces = "application/json")
@@ -215,16 +272,18 @@ public class UserPresenter {
 		User user = this.userDAO.checkMail(encrypted_username, encrypted_email, encrypted_phone);
 
 		if (user == null) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
 		}
 
-		FileWriter writer = new FileWriter(new File("D:/eclipse-workspace/its-cobs/java/config/webapp/WEB-INF/logfile/logs.txt"), true);
+		FileWriter writer = new FileWriter(
+				new File("D:/eclipse-workspace/its-cobs/java/config/webapp/WEB-INF/logfile/logs.txt"), true);
 		BufferedWriter bw = new BufferedWriter(writer);
 		bw.append("--- " + new Timestamp(System.currentTimeMillis()) + " ---");
 		bw.newLine();
-		bw.append("Username: [" + user.getUseraccount() + "] - Phone: [" + user.getPhonenumber() + "] - Email: ["
+		bw.append("Username: [" + user.getUsername() + "] - Phone: [" + user.getPhonenumber() + "] - Email: ["
 				+ user.getEmail() + "]");
 		bw.newLine();
 		bw.close();
@@ -241,9 +300,10 @@ public class UserPresenter {
 	public Map<String, Object> getUserCoin(@RequestHeader(value = "Localization") String key,
 			@RequestHeader(value = "Authorization") String code, @PathVariable String id) {
 		Map<String, Object> result = new HashMap<String, Object>();
-
+		Map<String, Object> data = new HashMap<String, Object>();
 		Token token = this.tokenDAO.getToken(code);
 		if (token == null) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
@@ -251,13 +311,16 @@ public class UserPresenter {
 
 		userdetail userdetail = this.userDAO.getUserDetail(id);
 		if (userdetail == null) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
 		}
 
 		this.tokenDAO.updateToken(code);
-		result.put("data", userdetail.getCoin_amount());
+		data.put("current-coint", userdetail.getCoin_amount());
+
+		result.put("data", data);
 		result.put("status", "200");
 		result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "200"));
 		return result;
@@ -269,9 +332,11 @@ public class UserPresenter {
 	public Map<String, Object> getUserVip(@RequestHeader(value = "Localization") String key,
 			@RequestHeader(value = "Authorization") String code, @PathVariable String id) {
 		Map<String, Object> result = new HashMap<String, Object>();
+		Map<String, Object> data = new HashMap<String, Object>();
 
 		Token token = this.tokenDAO.getToken(code);
 		if (token == null) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
@@ -279,13 +344,16 @@ public class UserPresenter {
 
 		User user = this.userDAO.findUserById(id);
 		if (user == null) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
 		}
 
 		this.tokenDAO.updateToken(code);
-		result.put("data", user.getUser_group_id().getId());
+		data.put("vip", user.getUser_group_id().getId());
+
+		result.put("data", data);
 		result.put("status", "200");
 		result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "200"));
 		return result;
@@ -301,6 +369,7 @@ public class UserPresenter {
 
 		Token token = this.tokenDAO.getToken(code);
 		if (token == null) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
@@ -308,14 +377,15 @@ public class UserPresenter {
 
 		User user = this.userDAO.findUserById(id);
 		if (user == null) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
 		}
-		
+
 		this.tokenDAO.updateToken(code);
 		data.put("id", user.getId());
-		data.put("useraccount", encryptDecrypt.encrypt(user.getUseraccount(), key));
+		data.put("useraccount", encryptDecrypt.encrypt(user.getUsername(), key));
 		data.put("phonenumber", encryptDecrypt.encrypt(user.getPhonenumber(), key));
 		data.put("phone_received_exchange", encryptDecrypt.encrypt(user.getPhone_received_exchange(), key));
 		data.put("fullname", encryptDecrypt.encrypt(user.getFullname(), key));
@@ -328,7 +398,8 @@ public class UserPresenter {
 		result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "200"));
 		return result;
 	}
-	
+
+	// GET user summary
 	@ApiOperation(value = "Get user summary", notes = "Get User Summary", response = User.class)
 	@GetMapping(value = "/user/{id}", produces = "application/json")
 	public Map<String, Object> getUserSummary(@RequestHeader(value = "Localization") String key,
@@ -338,6 +409,7 @@ public class UserPresenter {
 
 		Token token = this.tokenDAO.getToken(code);
 		if (token == null) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
@@ -345,13 +417,14 @@ public class UserPresenter {
 
 		User user = this.userDAO.findUserById(id);
 		if (user == null) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
 		}
 
 		this.tokenDAO.updateToken(code);
-		
+
 		userdetail detail = this.userDAO.getUserDetail(id);
 		data.put("totalWin", detail.getWin_match_total());
 		data.put("totalLose", detail.getLose_match_total());
@@ -374,32 +447,34 @@ public class UserPresenter {
 		User user = this.userDAO.checkWithdraw(id, phoneRX, password);
 		Token token = this.tokenDAO.getToken(code);
 		if (token == null) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
 		}
 
 		if (user == null) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
 		}
-		
+
 		this.tokenDAO.updateToken(code);
 		String data = this.userDAO.withdraw(amount, id);
 		if (data == "unSuccess") {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
-		}
-		else{
+		} else {
 			result.put("data", data);
 			result.put("status", "200");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "200"));
 			return result;
 		}
 	}
-	
+
 	// Deposit
 	@ApiOperation(value = "Deposit", notes = "Retriving status 200 if success", response = User.class)
 	@PostMapping(value = "/deposit", produces = "application/json; charset=UTF-8")
@@ -407,9 +482,10 @@ public class UserPresenter {
 			@RequestHeader(value = "Authorization") String code, @RequestParam("id") String id,
 			@RequestParam("coinCode") String coinCode) {
 		Map<String, Object> result = new HashMap<String, Object>();
-		
+
 		Token token = this.tokenDAO.getToken(code);
 		if (token == null) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
@@ -417,19 +493,20 @@ public class UserPresenter {
 
 		User user = this.userDAO.findUserById(id);
 		if (user == null) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
 		}
-		
+
 		this.tokenDAO.updateToken(code);
 		String data = this.userDAO.deposit(coinCode, id);
 		if (data == "unSuccess") {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
-		}
-		else{
+		} else {
 			result.put("data", data);
 			result.put("status", "200");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "200"));

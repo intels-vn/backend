@@ -15,4 +15,8 @@ public interface TokenDAO extends AbstractDAO<Token, Integer> {
 
 	void deleteExpiredToken();
 	
+	boolean checkExistedToken(String code, String username);
+	
+	Token getTokenByUsername(String username);
+	
 }

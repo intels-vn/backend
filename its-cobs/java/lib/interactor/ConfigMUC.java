@@ -27,7 +27,7 @@ public class ConfigMUC extends AbstractMUC<Config, Integer> implements ConfigDAO
 	public long getTokenTimeOut() {
 		String sql = "SELECT c.value FROM Config c WHERE c.name = 'Token Time Out'";
 		Query query = getSession().createSQLQuery(sql);
-		return Long.parseLong((String) query.uniqueResult()) * 60 * 1000;
+		return Long.parseLong((String) query.uniqueResult()) * 1000;
 	}
 
 }

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?><project-modules id="moduleCoreId" project-version="1.5.0">
-	<wb-module deploy-name="its-cobs">
-		<property name="context-root" value="its-cobs"/>
+	<wb-module deploy-name="its-cobs-backend">
+		<property name="context-root" value="its-cobs-backend"/>
         <wb-resource deploy-path="/WEB-INF/classes" source-path="/java"/>
         <wb-resource deploy-path="/WEB-INF/classes" source-path="/resources"/>
 		<dependent-module deploy-path="/WEB-INF/lib" handle="module:/classpath/lib/C:/Users/Huu Phuoc/.gradle/caches/modules-2/files-2.1/commons-collections/commons-collections/3.2/f951934aa5ae5a88d7e6dfaa6d32307d834a88be/commons-collections-3.2.jar">

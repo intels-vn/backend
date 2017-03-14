@@ -35,7 +35,7 @@ public class UserMUC extends AbstractMUC<User, Long> implements UserDAO {
 
 	@Autowired
 	private BlockDAO blockDAO;
-	
+
 	@Autowired
 	private CardDAO cardDAO;
 
@@ -44,6 +44,9 @@ public class UserMUC extends AbstractMUC<User, Long> implements UserDAO {
 	public String createUser(User user, String deviceId) {
 		String ipAddress = request.getHeader("X-FORWARDED-FOR");
 		String userAgent = request.getHeader("User-Agent");
+		if (user.getUsername().equals(user.getPassword()))
+			return "inValid";
+
 		int isMobile = userAgent.indexOf("Mobile", 0);
 		if (isMobile == -1) {
 			UUID uuid = UUID.randomUUID();
@@ -162,18 +165,21 @@ public class UserMUC extends AbstractMUC<User, Long> implements UserDAO {
 	// CHECKING LOG IN
 	@Override
 	public String checkLogin(String encrypted_username, String encrypted_password) {
-		if(encryptDecrypt.checkDecrypt(encrypted_username, this.configDAO.getPrivateKey()) == true && encryptDecrypt.checkDecrypt(encrypted_password, this.configDAO.getPrivateKey()) == true) {
-			String sql = "FROM User u WHERE u.useraccount = :username AND u.password = :password";
+		if (encryptDecrypt.checkDecrypt(encrypted_username, this.configDAO.getPrivateKey()) == true
+				&& encryptDecrypt.checkDecrypt(encrypted_password, this.configDAO.getPrivateKey()) == true) {
+			String sql = "FROM User u WHERE u.username = :username AND u.password = :password";
 			Query query = getSession().createQuery(sql);
 			query.setParameter("username", encryptDecrypt.decrypt(encrypted_username, this.configDAO.getPrivateKey()))
-			.setParameter("password", encrypted_password);
-			
+					.setParameter("password", encrypted_password);
+
 			User user = (User) query.uniqueResult();
-			
-			if(user != null)
+
+			if (user != null)
 				return user.getId();
-			else return "400";
-		} else return "500";
+			else
+				return "404";
+		} else
+			return "500";
 	}
 
 	// CHANGING STATUS OF ADMIN(such as: main-admin, sub-admin, inactive-admin)
@@ -186,6 +192,42 @@ public class UserMUC extends AbstractMUC<User, Long> implements UserDAO {
 		return query.executeUpdate();
 	}
 
+	// CHECKING EMAIL
+	@Override
+	public User checkMail(String encrypted_username, String encrypted_email, String encrypted_phone) {
+		String hql = "From User u where u.username=:username and u.email=:email and u.phonenumber=:phone";
+		return (User) getSession().createQuery(hql)
+				.setParameter("username", encryptDecrypt.decrypt(encrypted_username, this.configDAO.getPrivateKey()))
+				.setParameter("email", encryptDecrypt.decrypt(encrypted_email, this.configDAO.getPrivateKey()))
+				.setParameter("phone", encryptDecrypt.decrypt(encrypted_phone, this.configDAO.getPrivateKey()))
+				.uniqueResult();
+	}
+
+	// ** UPDATE USER ** //
+	// Profile
+	@Override
+	public void changeUserProfile(String id, String encrypted_fullname, String encrypted_email,
+			String encrypted_phone) {
+		String hql = "UPDATE User u SET u.email = :email, u.phonenumber = :phone, u.fullname = :fullname WHERE u.id = :id";
+		Query query = getSession().createQuery(hql);
+		query.setParameter("fullname", encryptDecrypt.decrypt(encrypted_fullname, this.configDAO.getPrivateKey()));
+		query.setParameter("email", encryptDecrypt.decrypt(encrypted_email, this.configDAO.getPrivateKey()));
+		query.setParameter("phone", encryptDecrypt.decrypt(encrypted_phone, this.configDAO.getPrivateKey()));
+		query.setParameter("id", id);
+		query.executeUpdate();
+	}
+
+	// Verify
+	@Override
+	public void verifyUserProfile(String id, String encrypt_PhoneRX, String encrypted_Password) {
+		String hql = "UPDATE User u SET u.phone_received_exchange = :phoneRX, u.password = :password WHERE u.id = :id";
+		Query query = getSession().createQuery(hql);
+		query.setParameter("phoneRX", encryptDecrypt.decrypt(encrypt_PhoneRX, this.configDAO.getPrivateKey()));
+		query.setParameter("password", encrypted_Password);
+		query.setParameter("id", id);
+		query.executeUpdate();
+	}
+
 	// CHANGING PASSWORD
 	@Override
 	public int changePassword(String id, String newPassword) {
@@ -194,32 +236,6 @@ public class UserMUC extends AbstractMUC<User, Long> implements UserDAO {
 		query.setParameter("newPassword", newPassword);
 		query.setParameter("id", id);
 		return query.executeUpdate();
-	}
-
-	// CHECKING EMAIL
-	@Override
-	public User checkMail(String encrypted_username, String encrypted_email, String encrypted_phone) {
-		String hql = "From User u where u.useraccount=:username and u.email=:email and u.phonenumber=:phone";
-		return (User) getSession().createQuery(hql)
-				.setParameter("username", encryptDecrypt.decrypt(encrypted_username, this.configDAO.getPrivateKey()))
-				.setParameter("email", encryptDecrypt.decrypt(encrypted_email, this.configDAO.getPrivateKey()))
-				.setParameter("phone", encryptDecrypt.decrypt(encrypted_phone, this.configDAO.getPrivateKey()))
-				.uniqueResult();
-	}
-
-	// Change User Profile
-	@Override
-	public void changeUserProfile(String id, String encrypted_fullname, String encrypted_password,
-			String encrypted_email, String encrypted_phone, String encrypted_phoneRX) {
-		String hql = "UPDATE User u SET u.password = :password, u.email = :email, u.phonenumber = :phone, u.fullname = :fullname, u.phone_received_exchange = :phoneRX WHERE u.id = :id";
-		Query query = getSession().createQuery(hql);
-		query.setParameter("fullname", encryptDecrypt.decrypt(encrypted_fullname, this.configDAO.getPrivateKey()));
-		query.setParameter("password", encrypted_password);
-		query.setParameter("email", encryptDecrypt.decrypt(encrypted_email, this.configDAO.getPrivateKey()));
-		query.setParameter("phone", encryptDecrypt.decrypt(encrypted_phone, this.configDAO.getPrivateKey()));
-		query.setParameter("phoneRX", encryptDecrypt.decrypt(encrypted_phoneRX, this.configDAO.getPrivateKey()));
-		query.setParameter("id", id);
-		query.executeUpdate();
 	}
 
 	// Get User Detail
@@ -253,7 +269,7 @@ public class UserMUC extends AbstractMUC<User, Long> implements UserDAO {
 		if (coinBalance >= 0) {
 			String hql = "UPDATE userdetail u SET u.coin_amount = :amount WHERE u.user_id = :id";
 			Query query = getSession().createQuery(hql);
-			query.setParameter("amount",coinBalance);
+			query.setParameter("amount", coinBalance);
 			query.setParameter("id", user);
 			query.executeUpdate();
 			return Long.toString(getUserDetail(id).getCoin_amount());
@@ -261,7 +277,7 @@ public class UserMUC extends AbstractMUC<User, Long> implements UserDAO {
 			return "unSuccess";
 		}
 	}
-	
+
 	// ** DEPOSIT **
 	@Override
 	public String deposit(String coinCode, String id) {
@@ -273,7 +289,7 @@ public class UserMUC extends AbstractMUC<User, Long> implements UserDAO {
 		if (coinBalance >= 0) {
 			String hql = "UPDATE userdetail u SET u.coin_amount = :amount WHERE u.user_id = :id";
 			Query query = getSession().createQuery(hql);
-			query.setParameter("amount",coinBalance);
+			query.setParameter("amount", coinBalance);
 			query.setParameter("id", user);
 			query.executeUpdate();
 			return Long.toString(getUserDetail(id).getCoin_amount());
@@ -281,16 +297,15 @@ public class UserMUC extends AbstractMUC<User, Long> implements UserDAO {
 			return "unSuccess";
 		}
 	}
-	
+
 	// ** Support Function ** //
 	private String createSql(User user, UUID uuid, String key, Timestamp date) {
-		String sql = "INSERT INTO User (id, useraccount, phonenumber, phone_received_exchange, fullname, password, password_expired, email, user_role_id, user_group_id, is_active,  date_created, last_updated)"
-				+ " VALUES ('" + uuid.toString() + "',N'" + encryptDecrypt.decrypt(user.getUseraccount(), key) + "', N'"
+		String sql = "INSERT INTO User (id, username, phonenumber, fullname, password, password_expired, email, user_role_id, user_group_id, is_active,  date_created, last_updated)"
+				+ " VALUES ('" + uuid.toString() + "',N'" + encryptDecrypt.decrypt(user.getUsername(), key) + "', N'"
 				+ encryptDecrypt.decrypt(user.getPhonenumber(), key) + "', N'"
-				+ encryptDecrypt.decrypt(user.getPhone_received_exchange(), key) + "', N'"
 				+ encryptDecrypt.decrypt(user.getFullname(), key) + "', N'" + user.getPassword() + "', N'" + 1 + "', N'"
-				+ encryptDecrypt.decrypt(user.getEmail(), key) + "', N'" + user.getUser_role_id().getId() + "', N'"
-				+ user.getUser_group_id().getId() + "', N'" + 1 + "', N'" + date + "', N'" + date + "')";
+				+ encryptDecrypt.decrypt(user.getEmail(), key) + "', N'" + 1 + "', N'" + 1 + "', N'" + 1 + "', N'"
+				+ date + "', N'" + date + "')";
 		return sql;
 	}
 

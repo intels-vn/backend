@@ -15,12 +15,12 @@ public class User {
 	private String id;
 
 	@Column(length = 255, unique = true, nullable = false)
-	private String useraccount;
+	private String username;
 
 	@Column(length = 255, unique = true, nullable = false)
 	private String phonenumber;
 	
-	@Column(length = 255, unique = true, nullable = false)
+	@Column(length = 255, unique = true)
 	private String phone_received_exchange;
 	
 	@Column(length = 255, nullable = false)
@@ -63,12 +63,12 @@ public class User {
 		this.id = id;
 	}
 
-	public String getUseraccount() {
-		return useraccount;
+	public String getUsername() {
+		return username;
 	}
 
-	public void setUseraccount(String useraccount) {
-		this.useraccount = useraccount;
+	public void setUsername(String username) {
+		this.username = username;
 	}
 
 	public String getPhonenumber() {

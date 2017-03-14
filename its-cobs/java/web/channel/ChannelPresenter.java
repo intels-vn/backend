@@ -26,7 +26,7 @@ public class ChannelPresenter {
 	private TokenDAO tokenDAO;
 	@Autowired
 	private HttpStatusDAO httpStatusDAO;
-	
+
 	@ApiOperation(value = "Get List of Channel", notes = "Get List of Channel", response = Channel.class)
 	@GetMapping(value = "/channels", produces = "application/json")
 	public Map<String, Object> getChannelList(@RequestHeader(value = "Localization") String key,
@@ -35,13 +35,15 @@ public class ChannelPresenter {
 
 		Token token = this.tokenDAO.getToken(code);
 		if (token == null) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
 		}
-		
+
 		List<Channel> channel = this.channelDAO.getChannelList();
-		if(channel.isEmpty()){
+		if (channel.isEmpty()) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;

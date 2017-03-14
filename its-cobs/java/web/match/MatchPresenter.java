@@ -40,6 +40,7 @@ public class MatchPresenter {
 
 		Token token = this.tokenDAO.getToken(code);
 		if (token == null) {
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
@@ -47,6 +48,7 @@ public class MatchPresenter {
 		
 		List<Matcheess> matcheess = this.matchDAO.getMatchInfo(id);
 		if(matcheess.isEmpty()){
+			result.put("data", "");
 			result.put("status", "400");
 			result.put("message", this.httpStatusDAO.getHttpStatusByKeyByLocalization(key, "400"));
 			return result;
